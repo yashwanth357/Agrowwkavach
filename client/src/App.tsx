@@ -1,19 +1,27 @@
-// App.tsx
+// src/App.tsx
 import { ClerkProvider } from "@clerk/clerk-react";
 import { BrowserRouter } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-// Get this from your Clerk Dashboard
-const PUBLISHABLE_KEY =
-  "pk_test_Y3JlZGlibGUtZWdyZXQtNTYuY2xlcmsuYWNjb3VudHMuZGV2JA";
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error("Missing Publishable Key");
+}
 
 const App = () => {
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <BrowserRouter>
-        <MainLayout />
-      </BrowserRouter>
-    </ClerkProvider>
+    <ErrorBoundary>
+      <ClerkProvider
+        publishableKey={PUBLISHABLE_KEY}
+        navigate={(to) => (window.location.href = to)}
+      >
+        <BrowserRouter>
+          <MainLayout />
+        </BrowserRouter>
+      </ClerkProvider>
+    </ErrorBoundary>
   );
 };
 

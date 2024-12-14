@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,21 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
     farmingType: "",
   });
 
+  useEffect(() => {
+    if (isOpen) {
+      setError("");
+      setFormData({
+        email: "",
+        password: "",
+        confirmPassword: "",
+        location: "",
+        farmSize: "",
+        mainCrops: "",
+        farmingType: "",
+      });
+    }
+  }, [isOpen, isLogin]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -50,22 +65,31 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
   };
 
   const validateForm = () => {
-    if (!formData.email || !formData.password) {
-      setError("Email and password are required");
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address");
+      return false;
+    }
+
+    // Password validation
+    if (!formData.password) {
+      setError("Password is required");
       return false;
     }
 
     if (!isLogin) {
-      if (formData.password !== formData.confirmPassword) {
-        setError("Passwords do not match");
-        return false;
-      }
-
       if (formData.password.length < 6) {
         setError("Password must be at least 6 characters long");
         return false;
       }
 
+      if (formData.password !== formData.confirmPassword) {
+        setError("Passwords do not match");
+        return false;
+      }
+
+      // Registration-specific validations
       if (
         !formData.location ||
         !formData.farmSize ||
@@ -73,6 +97,12 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
         !formData.farmingType
       ) {
         setError("All farm details are required");
+        return false;
+      }
+
+      // Validate farm size is a number
+      if (isNaN(formData.farmSize)) {
+        setError("Farm size must be a number");
         return false;
       }
     }
@@ -95,12 +125,18 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
       if (isLogin) {
         result = await authAPI.login(formData.email, formData.password);
       } else {
+        // Process mainCrops before sending
+        const mainCropsArray = formData.mainCrops
+          .split(",")
+          .map((crop) => crop.trim())
+          .filter((crop) => crop.length > 0);
+
         result = await authAPI.register({
-          email: formData.email,
+          email: formData.email.toLowerCase(),
           password: formData.password,
           location: formData.location,
           farmSize: formData.farmSize,
-          mainCrops: formData.mainCrops,
+          mainCrops: mainCropsArray,
           farmingType: formData.farmingType,
         });
       }
@@ -132,7 +168,9 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
     } catch (err) {
       console.error("Auth error:", err);
       setError(
-        err.response?.data?.error || "Authentication failed. Please try again.",
+        err.response?.data?.error ||
+          err.response?.data?.details ||
+          "Authentication failed. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -217,7 +255,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                 />
 
                 <Input
-                  type="text"
+                  type="number"
                   name="farmSize"
                   placeholder="Farm Size (in acres)"
                   value={formData.farmSize}
@@ -225,6 +263,8 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                   className="w-full"
                   required
                   disabled={isLoading}
+                  min="0"
+                  step="0.01"
                 />
 
                 <Input
@@ -243,6 +283,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                   onValueChange={(value) =>
                     handleSelectChange("farmingType", value)
                   }
+                  value={formData.farmingType}
                   disabled={isLoading}
                 >
                   <SelectTrigger className="w-full bg-white border border-input">

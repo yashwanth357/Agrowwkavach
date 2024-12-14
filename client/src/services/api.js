@@ -1,5 +1,6 @@
 // services/api.js
 import axios from "axios";
+import { useAuth } from "@clerk/clerk-react";
 
 const API_URL = "http://localhost:5003/api";
 
@@ -10,9 +11,10 @@ const api = axios.create({
   },
 });
 
-// Add interceptor to add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+// Update the interceptor to use Clerk token
+api.interceptors.request.use(async (config) => {
+  const { getToken } = useAuth();
+  const token = await getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,20 +22,11 @@ api.interceptors.request.use((config) => {
 });
 
 export const authAPI = {
-  login: async (email, password) => {
-    const response = await api.post("/auth/login", { email, password });
-    localStorage.setItem("token", response.data.token);
-    return response.data;
-  },
+  // Remove login/register methods since Clerk handles authentication
 
-  register: async (userData) => {
-    const response = await api.post("/auth/register", userData);
-    localStorage.setItem("token", response.data.token);
+  getCurrentUser: async () => {
+    const response = await api.get("/profile");
     return response.data;
-  },
-
-  logout: () => {
-    localStorage.removeItem("token");
   },
 };
 
