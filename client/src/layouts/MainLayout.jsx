@@ -1,5 +1,5 @@
+// MainLayout.jsx
 import React, { useState } from "react";
-import { useAuth, useUser } from "@clerk/clerk-react";
 import {
   Routes,
   Route,
@@ -11,11 +11,20 @@ import { Home, User, Clock, LogOut, PlusCircle, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth, useUser, SignedIn, SignedOut } from "@clerk/clerk-react";
 import HomePage from "../pages/HomePage";
 import TimelinePage from "../pages/TimelinePage";
 import ProfilePage from "../pages/ProfilePage";
 import CreatePostModal from "../components/CreatePostModal";
 import AuthModal from "../components/AuthModal";
+
+const ProtectedRoute = ({ children }) => {
+  const { isSignedIn } = useAuth();
+  if (!isSignedIn) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
 
 const MainLayout = () => {
   const location = useLocation();
@@ -39,6 +48,10 @@ const MainLayout = () => {
     setIsAuthModalOpen(true);
   };
 
+  const handleAuthSuccess = () => {
+    setIsAuthModalOpen(false);
+  };
+
   const getPageTitle = (pathname) => {
     switch (pathname) {
       case "/":
@@ -60,12 +73,6 @@ const MainLayout = () => {
     }
   };
 
-  const getUserInitials = () => {
-    if (!user) return "U";
-    const email = user.primaryEmailAddress?.emailAddress || "";
-    return email.substring(0, 2).toUpperCase();
-  };
-
   const SidebarContent = ({ isMobile = false }) => (
     <div
       className={`flex flex-col h-full bg-white ${isMobile ? "p-4" : "p-3"}`}
@@ -79,11 +86,7 @@ const MainLayout = () => {
             className={({ isActive }) => `
               w-full flex items-center gap-4 mb-2 text-base px-4 py-4 rounded-lg
               hover:bg-gray-100 font-medium transition-colors
-              ${
-                isActive
-                  ? "bg-gray-100 text-gray-900 font-semibold"
-                  : "text-gray-600"
-              }
+              ${isActive ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-600"}
             `}
             onClick={() => isMobile && document.body.click()}
           >
@@ -100,19 +103,15 @@ const MainLayout = () => {
           </NavLink>
         ))}
 
-        {isSignedIn &&
-          protectedSidebarItems.map((item, index) => (
+        <SignedIn>
+          {protectedSidebarItems.map((item, index) => (
             <NavLink
               key={`protected-${index}`}
               to={item.path}
               className={({ isActive }) => `
                 w-full flex items-center gap-4 mb-2 text-base px-4 py-4 rounded-lg
                 hover:bg-gray-100 font-medium transition-colors
-                ${
-                  isActive
-                    ? "bg-gray-100 text-gray-900 font-semibold"
-                    : "text-gray-600"
-                }
+                ${isActive ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-600"}
               `}
               onClick={() => isMobile && document.body.click()}
             >
@@ -128,47 +127,46 @@ const MainLayout = () => {
               {item.label}
             </NavLink>
           ))}
+        </SignedIn>
       </nav>
+
       <div className="mt-auto space-y-3">
-        {isSignedIn ? (
-          <>
-            <Button
-              onClick={() => setIsPostModalOpen(true)}
-              className="w-full mb-3 py-6 bg-gray-900 hover:bg-gray-800 text-white rounded-full"
-              size="lg"
-            >
-              <PlusCircle className="mr-2" size={20} />
-              New Post
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full py-3 border-gray-200 text-gray-900"
-              size="lg"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-2" size={20} />
-              Log Out
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              className="w-full bg-gray-900 hover:bg-gray-800 text-white"
-              size="lg"
-              onClick={() => handleOpenAuth(true)}
-            >
-              Sign In
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full border-gray-200 hover:bg-gray-100"
-              size="lg"
-              onClick={() => handleOpenAuth(false)}
-            >
-              Sign Up
-            </Button>
-          </>
-        )}
+        <SignedIn>
+          <Button
+            onClick={() => setIsPostModalOpen(true)}
+            className="w-full mb-3 py-6 bg-gray-900 hover:bg-gray-800 text-white rounded-full"
+            size="lg"
+          >
+            <PlusCircle className="mr-2" size={20} />
+            New Post
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full py-3 border-gray-200 text-gray-900"
+            size="lg"
+            onClick={handleLogout}
+          >
+            <LogOut className="mr-2" size={20} />
+            Log Out
+          </Button>
+        </SignedIn>
+        <SignedOut>
+          <Button
+            className="w-full bg-gray-900 hover:bg-gray-800 text-white"
+            size="lg"
+            onClick={() => handleOpenAuth(true)}
+          >
+            Sign In
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full border-gray-200 hover:bg-gray-100"
+            size="lg"
+            onClick={() => handleOpenAuth(false)}
+          >
+            Sign Up
+          </Button>
+        </SignedOut>
       </div>
     </div>
   );
@@ -200,11 +198,16 @@ const MainLayout = () => {
               </SheetContent>
             </Sheet>
             <span className="text-xl font-bold">Agroww Kavach</span>
-            {isSignedIn ? (
+            <SignedIn>
               <Avatar className="w-8 h-8">
-                <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                <AvatarFallback>
+                  {user?.firstName?.[0] ||
+                    user?.emailAddresses?.[0]?.emailAddress?.[0] ||
+                    "U"}
+                </AvatarFallback>
               </Avatar>
-            ) : (
+            </SignedIn>
+            <SignedOut>
               <div className="flex gap-2">
                 <Button
                   variant="ghost"
@@ -221,7 +224,7 @@ const MainLayout = () => {
                   Sign Up
                 </Button>
               </div>
-            )}
+            </SignedOut>
           </div>
         </div>
 
@@ -235,41 +238,40 @@ const MainLayout = () => {
               </div>
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                {isSignedIn ? (
-                  <>
-                    <Route path="/timeline" element={<TimelinePage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                  </>
-                ) : (
-                  <>
-                    <Route
-                      path="/timeline"
-                      element={<Navigate to="/" replace />}
-                    />
-                    <Route
-                      path="/profile"
-                      element={<Navigate to="/" replace />}
-                    />
-                  </>
-                )}
+                <Route
+                  path="/timeline"
+                  element={
+                    <ProtectedRoute>
+                      <TimelinePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
             </div>
           </div>
         </div>
       </div>
 
-      {isSignedIn && (
+      <SignedIn>
         <CreatePostModal
           isOpen={isPostModalOpen}
           onClose={() => setIsPostModalOpen(false)}
         />
-      )}
+      </SignedIn>
 
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         isLogin={isLogin}
-        onSuccess={() => setIsAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
       />
     </>
   );

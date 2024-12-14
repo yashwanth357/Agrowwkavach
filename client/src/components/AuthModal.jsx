@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useSignIn, useSignUp } from "@clerk/clerk-react";
 import {
   Dialog,
   DialogContent,
@@ -15,11 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { authAPI } from "../services/api";
+import { useNavigate } from "react-router-dom";
 
 const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
-  const { signIn, isLoading: isSigningIn } = useSignIn();
-  const { signUp, isLoading: isSigningUp } = useSignUp();
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(initialIsLogin);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     email: "",
@@ -37,62 +38,104 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
       ...prev,
       [name]: value,
     }));
-    setError(""); // Clear error when user types
+    setError("");
+  };
+
+  const handleSelectChange = (name, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setError("");
+  };
+
+  const validateForm = () => {
+    if (!formData.email || !formData.password) {
+      setError("Email and password are required");
+      return false;
+    }
+
+    if (!isLogin) {
+      if (formData.password !== formData.confirmPassword) {
+        setError("Passwords do not match");
+        return false;
+      }
+
+      if (formData.password.length < 6) {
+        setError("Password must be at least 6 characters long");
+        return false;
+      }
+
+      if (
+        !formData.location ||
+        !formData.farmSize ||
+        !formData.mainCrops ||
+        !formData.farmingType
+      ) {
+        setError("All farm details are required");
+        return false;
+      }
+    }
+
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
+      let result;
       if (isLogin) {
-        // Handle Sign In
-        const result = await signIn.create({
-          identifier: formData.email,
-          password: formData.password,
-        });
-
-        if (result.status === "complete") {
-          onSuccess();
-          onClose();
-        }
+        result = await authAPI.login(formData.email, formData.password);
       } else {
-        // Validate passwords match
-        if (formData.password !== formData.confirmPassword) {
-          setError("Passwords do not match");
-          return;
-        }
-
-        // Handle Sign Up
-        const signUpResult = await signUp.create({
-          emailAddress: formData.email,
+        result = await authAPI.register({
+          email: formData.email,
           password: formData.password,
+          location: formData.location,
+          farmSize: formData.farmSize,
+          mainCrops: formData.mainCrops,
+          farmingType: formData.farmingType,
         });
-
-        // Create user metadata with farm details
-        if (signUpResult.status === "complete") {
-          try {
-            // You can use Clerk's public metadata to store farm details
-            await signUpResult.createdSessionId.setPublicMetadata({
-              location: formData.location,
-              farmSize: formData.farmSize,
-              mainCrops: formData.mainCrops
-                .split(",")
-                .map((crop) => crop.trim()),
-              farmingType: formData.farmingType,
-            });
-
-            onSuccess();
-            onClose();
-          } catch (metadataError) {
-            console.error("Error setting metadata:", metadataError);
-            setError("Account created but failed to save farm details");
-          }
-        }
       }
+
+      // Store the token
+      localStorage.setItem("token", result.token);
+
+      // Call the success callback
+      if (onSuccess) {
+        onSuccess(result);
+      }
+
+      // Reset form
+      setFormData({
+        email: "",
+        password: "",
+        confirmPassword: "",
+        location: "",
+        farmSize: "",
+        mainCrops: "",
+        farmingType: "",
+      });
+
+      // Close the modal
+      onClose();
+
+      // Navigate to timeline
+      navigate("/timeline");
     } catch (err) {
       console.error("Auth error:", err);
-      setError(err.errors?.[0]?.message || "Authentication failed");
+      setError(
+        err.response?.data?.error || "Authentication failed. Please try again.",
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -135,6 +178,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
               onChange={handleChange}
               className="w-full"
               required
+              disabled={isLoading}
             />
 
             <Input
@@ -145,6 +189,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
               onChange={handleChange}
               className="w-full"
               required
+              disabled={isLoading}
             />
 
             {!isLogin && (
@@ -157,6 +202,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                   onChange={handleChange}
                   className="w-full"
                   required
+                  disabled={isLoading}
                 />
 
                 <Input
@@ -167,6 +213,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                   onChange={handleChange}
                   className="w-full"
                   required
+                  disabled={isLoading}
                 />
 
                 <Input
@@ -177,6 +224,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                   onChange={handleChange}
                   className="w-full"
                   required
+                  disabled={isLoading}
                 />
 
                 <Input
@@ -187,34 +235,26 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
                   onChange={handleChange}
                   className="w-full"
                   required
+                  disabled={isLoading}
                 />
 
                 <Select
                   name="farmingType"
                   onValueChange={(value) =>
-                    handleChange({ target: { name: "farmingType", value } })
+                    handleSelectChange("farmingType", value)
                   }
+                  disabled={isLoading}
                 >
                   <SelectTrigger className="w-full bg-white border border-input">
                     <SelectValue placeholder="Select Farming Type" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border border-input shadow-md">
-                    <SelectItem value="organic" className="hover:bg-gray-100">
-                      Organic Farming
-                    </SelectItem>
-                    <SelectItem value="mixed" className="hover:bg-gray-100">
-                      Mixed Farming
-                    </SelectItem>
-                    <SelectItem
-                      value="conventional"
-                      className="hover:bg-gray-100"
-                    >
+                    <SelectItem value="organic">Organic Farming</SelectItem>
+                    <SelectItem value="conventional">
                       Conventional Farming
                     </SelectItem>
-                    <SelectItem
-                      value="sustainable"
-                      className="hover:bg-gray-100"
-                    >
+                    <SelectItem value="mixed">Mixed Farming</SelectItem>
+                    <SelectItem value="sustainable">
                       Sustainable Farming
                     </SelectItem>
                   </SelectContent>
@@ -227,13 +267,9 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
             type="submit"
             className="w-full bg-gray-900 text-white hover:bg-gray-800"
             size="lg"
-            disabled={isSigningIn || isSigningUp}
+            disabled={isLoading}
           >
-            {isSigningIn || isSigningUp
-              ? "Loading..."
-              : isLogin
-                ? "Sign In"
-                : "Create Account"}
+            {isLoading ? "Loading..." : isLogin ? "Sign In" : "Create Account"}
           </Button>
 
           <div className="text-center text-sm">
@@ -246,6 +282,7 @@ const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
               type="button"
               onClick={toggleMode}
               className="text-blue-600 hover:underline font-medium"
+              disabled={isLoading}
             >
               {isLogin ? "Sign Up" : "Sign In"}
             </button>
