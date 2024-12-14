@@ -8,17 +8,15 @@ const path = require("path");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5003;
 const JWT_SECRET = process.env.JWT_SECRET;
 const UPLOAD_PATH = process.env.FILE_UPLOAD_PATH || "./uploads";
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5000000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(UPLOAD_PATH));
 
-// MongoDB Connection
 mongoose
   .connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -27,7 +25,6 @@ mongoose
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Image Upload Configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, UPLOAD_PATH);
@@ -45,7 +42,6 @@ const upload = multer({
   },
 });
 
-// Check File Type
 function checkFileType(file, cb) {
   const filetypes = /jpeg|jpg|png|gif/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -58,7 +54,6 @@ function checkFileType(file, cb) {
   }
 }
 
-// Auth Middleware
 const auth = async (req, res, next) => {
   try {
     const token = req.header("Authorization").replace("Bearer ", "");
@@ -70,8 +65,6 @@ const auth = async (req, res, next) => {
   }
 };
 
-// Routes
-// Auth Routes
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, location, farmSize, mainCrops, farmingType } =

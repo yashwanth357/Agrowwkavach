@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useSignIn, useSignUp } from "@clerk/clerk-react";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const AuthModal = ({ isOpen, onClose }) => {
-  const [isLogin, setIsLogin] = useState(true);
+const AuthModal = ({ isOpen, onClose, isLogin: initialIsLogin, onSuccess }) => {
+  const { signIn, isLoading: isSigningIn } = useSignIn();
+  const { signUp, isLoading: isSigningUp } = useSignUp();
+  const [isLogin, setIsLogin] = useState(initialIsLogin);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -33,13 +37,63 @@ const AuthModal = ({ isOpen, onClose }) => {
       ...prev,
       [name]: value,
     }));
+    setError(""); // Clear error when user types
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle authentication logic here
-    console.log(formData);
-    onClose();
+    setError("");
+
+    try {
+      if (isLogin) {
+        // Handle Sign In
+        const result = await signIn.create({
+          identifier: formData.email,
+          password: formData.password,
+        });
+
+        if (result.status === "complete") {
+          onSuccess();
+          onClose();
+        }
+      } else {
+        // Validate passwords match
+        if (formData.password !== formData.confirmPassword) {
+          setError("Passwords do not match");
+          return;
+        }
+
+        // Handle Sign Up
+        const signUpResult = await signUp.create({
+          emailAddress: formData.email,
+          password: formData.password,
+        });
+
+        // Create user metadata with farm details
+        if (signUpResult.status === "complete") {
+          try {
+            // You can use Clerk's public metadata to store farm details
+            await signUpResult.createdSessionId.setPublicMetadata({
+              location: formData.location,
+              farmSize: formData.farmSize,
+              mainCrops: formData.mainCrops
+                .split(",")
+                .map((crop) => crop.trim()),
+              farmingType: formData.farmingType,
+            });
+
+            onSuccess();
+            onClose();
+          } catch (metadataError) {
+            console.error("Error setting metadata:", metadataError);
+            setError("Account created but failed to save farm details");
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
+      setError(err.errors?.[0]?.message || "Authentication failed");
+    }
   };
 
   const toggleMode = () => {
@@ -53,6 +107,7 @@ const AuthModal = ({ isOpen, onClose }) => {
       mainCrops: "",
       farmingType: "",
     });
+    setError("");
   };
 
   return (
@@ -65,6 +120,12 @@ const AuthModal = ({ isOpen, onClose }) => {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          {error && (
+            <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">
+              {error}
+            </div>
+          )}
+
           <div className="space-y-3">
             <Input
               type="email"
@@ -166,8 +227,13 @@ const AuthModal = ({ isOpen, onClose }) => {
             type="submit"
             className="w-full bg-gray-900 text-white hover:bg-gray-800"
             size="lg"
+            disabled={isSigningIn || isSigningUp}
           >
-            {isLogin ? "Sign In" : "Create Account"}
+            {isSigningIn || isSigningUp
+              ? "Loading..."
+              : isLogin
+                ? "Sign In"
+                : "Create Account"}
           </Button>
 
           <div className="text-center text-sm">

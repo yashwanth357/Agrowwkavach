@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import {
   Routes,
   Route,
@@ -18,10 +19,11 @@ import AuthModal from "../components/AuthModal";
 
 const MainLayout = () => {
   const location = useLocation();
+  const { isSignedIn, signOut } = useAuth();
+  const { user } = useUser();
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const publicSidebarItems = [
     { icon: <Home size={24} />, label: "Home", path: "/" },
@@ -50,8 +52,18 @@ const MainLayout = () => {
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  const getUserInitials = () => {
+    if (!user) return "U";
+    const email = user.primaryEmailAddress?.emailAddress || "";
+    return email.substring(0, 2).toUpperCase();
   };
 
   const SidebarContent = ({ isMobile = false }) => (
@@ -88,7 +100,7 @@ const MainLayout = () => {
           </NavLink>
         ))}
 
-        {isAuthenticated &&
+        {isSignedIn &&
           protectedSidebarItems.map((item, index) => (
             <NavLink
               key={`protected-${index}`}
@@ -118,7 +130,7 @@ const MainLayout = () => {
           ))}
       </nav>
       <div className="mt-auto space-y-3">
-        {isAuthenticated ? (
+        {isSignedIn ? (
           <>
             <Button
               onClick={() => setIsPostModalOpen(true)}
@@ -188,9 +200,9 @@ const MainLayout = () => {
               </SheetContent>
             </Sheet>
             <span className="text-xl font-bold">Agroww Kavach</span>
-            {isAuthenticated ? (
+            {isSignedIn ? (
               <Avatar className="w-8 h-8">
-                <AvatarFallback>U</AvatarFallback>
+                <AvatarFallback>{getUserInitials()}</AvatarFallback>
               </Avatar>
             ) : (
               <div className="flex gap-2">
@@ -223,7 +235,7 @@ const MainLayout = () => {
               </div>
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                {isAuthenticated ? (
+                {isSignedIn ? (
                   <>
                     <Route path="/timeline" element={<TimelinePage />} />
                     <Route path="/profile" element={<ProfilePage />} />
@@ -246,7 +258,7 @@ const MainLayout = () => {
         </div>
       </div>
 
-      {isAuthenticated && (
+      {isSignedIn && (
         <CreatePostModal
           isOpen={isPostModalOpen}
           onClose={() => setIsPostModalOpen(false)}
@@ -257,10 +269,7 @@ const MainLayout = () => {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         isLogin={isLogin}
-        onSuccess={() => {
-          setIsAuthenticated(true);
-          setIsAuthModalOpen(false);
-        }}
+        onSuccess={() => setIsAuthModalOpen(false)}
       />
     </>
   );
