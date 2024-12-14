@@ -13,7 +13,12 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const UPLOAD_PATH = process.env.FILE_UPLOAD_PATH || "./uploads";
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5000000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5174",
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use("/uploads", express.static(UPLOAD_PATH));
 
