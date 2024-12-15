@@ -5,6 +5,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { User, Post } = require("./models");
+const OpenAI = require("openai");
 require("dotenv").config();
 
 // Server Configuration
@@ -12,6 +13,11 @@ const app = express();
 const PORT = process.env.PORT || 5003;
 const UPLOAD_PATH = process.env.FILE_UPLOAD_PATH || "./uploads";
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5000000; // 5MB
+
+// OpenAI Configuration
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Request Logging Middleware
 app.use((req, res, next) => {
@@ -63,9 +69,36 @@ const upload = multer({
   },
 });
 
-// Test Route
-app.get("/api/test", (req, res) => {
-  res.json({ message: "Server is working" });
+// Chat Endpoint
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    const systemPrompt = `You are a helpful farming and agriculture assistant. Your role is to:
+    - Answer questions about farming techniques, crop management, and agricultural practices
+    - Provide guidance on sustainable farming methods
+    - Help diagnose common crop issues and suggest solutions
+    - Share knowledge about soil health, irrigation, and pest management
+    - Recommend best practices for various types of farming
+
+    Keep your responses focused on farming and agriculture. If asked about unrelated topics,
+    politely redirect the conversation back to farming.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message },
+      ],
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    res.json({ message: response.choices[0].message.content });
+  } catch (error) {
+    console.error("Chat API error:", error);
+    res.status(500).json({ error: "Failed to get response from AI" });
+  }
 });
 
 // Profile Routes
@@ -148,7 +181,7 @@ app.put("/api/profile/:clerkId", async (req, res) => {
   }
 });
 
-// Post Routes
+// Posts Routes
 app.post("/api/posts", upload.single("image"), async (req, res) => {
   try {
     const { content, clerkId } = req.body;
@@ -195,7 +228,15 @@ app.get("/api/posts", async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const posts = await Post.find()
+    let query = {};
+    if (req.query.userId) {
+      const user = await User.findOne({ clerkId: req.query.userId });
+      if (user) {
+        query.author = user._id;
+      }
+    }
+
+    const posts = await Post.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -208,7 +249,7 @@ app.get("/api/posts", async (req, res) => {
         select: "email clerkId",
       });
 
-    const total = await Post.countDocuments();
+    const total = await Post.countDocuments(query);
 
     res.json({
       posts,
@@ -219,48 +260,6 @@ app.get("/api/posts", async (req, res) => {
   } catch (error) {
     console.error("Posts fetch error:", error);
     res.status(500).json({ error: "Failed to fetch posts" });
-  }
-});
-
-app.delete("/api/posts/:id", async (req, res) => {
-  try {
-    const { clerkId } = req.body;
-
-    if (!clerkId) {
-      return res.status(400).json({ error: "clerkId is required" });
-    }
-
-    const user = await User.findOne({ clerkId });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const post = await Post.findById(req.params.id).populate(
-      "author",
-      "clerkId",
-    );
-    if (!post) {
-      return res.status(404).json({ error: "Post not found" });
-    }
-
-    if (post.author.clerkId !== clerkId) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to delete this post" });
-    }
-
-    if (post.image) {
-      const imagePath = path.join(__dirname, post.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
-    }
-
-    await Post.findByIdAndDelete(req.params.id);
-    res.json({ message: "Post deleted successfully" });
-  } catch (error) {
-    console.error("Delete post error:", error);
-    res.status(500).json({ error: "Failed to delete post" });
   }
 });
 
@@ -348,13 +347,50 @@ app.post("/api/posts/:id/comment", async (req, res) => {
   }
 });
 
+app.delete("/api/posts/:id", async (req, res) => {
+  try {
+    const { clerkId } = req.body;
+
+    if (!clerkId) {
+      return res.status(400).json({ error: "clerkId is required" });
+    }
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const post = await Post.findById(req.params.id).populate(
+      "author",
+      "clerkId",
+    );
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    if (post.author.clerkId !== clerkId) {
+      return res
+        .status(403)
+        .json({ error: "Not authorized to delete this post" });
+    }
+
+    if (post.image) {
+      const imagePath = path.join(__dirname, post.image);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    await Post.findByIdAndDelete(req.params.id);
+    res.json({ message: "Post deleted successfully" });
+  } catch (error) {
+    console.error("Delete post error:", error);
+    res.status(500).json({ error: "Failed to delete post" });
+  }
+});
+
 app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
   try {
-    console.log("Delete comment request:", {
-      params: req.params,
-      body: req.body,
-    });
-
     const { clerkId } = req.body;
     const { postId, commentId } = req.params;
 
@@ -401,29 +437,6 @@ app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
   } catch (error) {
     console.error("Delete comment error:", error);
     res.status(500).json({ error: "Failed to delete comment" });
-  }
-});
-
-app.get("/api/posts/:id", async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
-      .populate({
-        path: "author",
-        select: "email location clerkId",
-      })
-      .populate({
-        path: "comments.user",
-        select: "email clerkId",
-      });
-
-    if (!post) {
-      return res.status(404).json({ error: "Post not found" });
-    }
-
-    res.json(post);
-  } catch (error) {
-    console.error("Post fetch error:", error);
-    res.status(500).json({ error: "Failed to fetch post" });
   }
 });
 
