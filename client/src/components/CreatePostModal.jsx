@@ -9,15 +9,25 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useUser } from "@clerk/clerk-react";
+import axios from "axios";
 
 const CreatePostModal = ({ isOpen, onClose }) => {
+  const { user } = useUser();
   const [content, setContent] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (file.size > 5000000) {
+        // 5MB limit
+        setError("Image size should be less than 5MB");
+        return;
+      }
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -27,15 +37,39 @@ const CreatePostModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle post creation here
-    console.log({ content, selectedImage });
-    // Reset form
-    setContent("");
-    setSelectedImage(null);
-    setImagePreview(null);
-    onClose();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("content", content);
+      formData.append("clerkId", user.id);
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      await axios.post("http://localhost:5003/api/posts", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // Reset form
+      setContent("");
+      setSelectedImage(null);
+      setImagePreview(null);
+      onClose();
+
+      // Optional: Refresh the posts feed
+      window.location.reload();
+    } catch (error) {
+      console.error("Error creating post:", error);
+      setError(error.response?.data?.error || "Failed to create post");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const removeImage = () => {
@@ -52,9 +86,18 @@ const CreatePostModal = ({ isOpen, onClose }) => {
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {error && (
+            <div className="text-red-500 bg-red-50 p-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="flex gap-3 items-start">
             <Avatar className="w-10 h-10">
-              <AvatarFallback>JD</AvatarFallback>
+              <AvatarFallback>
+                {user?.firstName?.[0] ||
+                  user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase()}
+              </AvatarFallback>
             </Avatar>
             <Textarea
               value={content}
@@ -104,15 +147,16 @@ const CreatePostModal = ({ isOpen, onClose }) => {
                 variant="ghost"
                 onClick={onClose}
                 className="font-semibold hover:bg-gray-100"
+                disabled={isLoading}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 className="bg-gray-900 text-white hover:bg-gray-800"
-                disabled={!content.trim() && !selectedImage}
+                disabled={(!content.trim() && !selectedImage) || isLoading}
               >
-                Post
+                {isLoading ? "Posting..." : "Post"}
               </Button>
             </div>
           </div>

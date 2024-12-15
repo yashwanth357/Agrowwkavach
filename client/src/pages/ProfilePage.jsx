@@ -1,40 +1,74 @@
-import React from "react";
+import React, { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import ProfileForm from "../components/ProfileForm";
+import { useUser } from "@clerk/clerk-react";
 
-const ProfilePage = () => (
-  <div className="p-4">
-    <div className="bg-white rounded-lg p-6 shadow-sm">
-      <div className="flex items-center gap-4 mb-6">
-        <Avatar className="w-16 h-16">
-          <AvatarFallback className="bg-gray-200 text-xl">JD</AvatarFallback>
-        </Avatar>
-        <div>
-          <h2 className="text-xl font-semibold">John Doe</h2>
-          <p className="text-gray-500">@johndoe</p>
-        </div>
-      </div>
-      <div className="space-y-6">
-        <div className="border-b pb-4">
-          <h3 className="font-medium text-gray-900 mb-3">Farm Details</h3>
-          <div className="grid gap-2">
-            <p className="text-gray-600">Location: Karnataka, India</p>
-            <p className="text-gray-600">Farm Size: 25 acres</p>
-            <p className="text-gray-600">Main Crops: Rice, Wheat, Vegetables</p>
-            <p className="text-gray-600">Farming Type: Mixed Farming</p>
+const ProfilePage = () => {
+  const { user } = useUser();
+  const [userProfile, setUserProfile] = useState({
+    location: "",
+    farmSize: "",
+    mainCrops: [],
+    farmingType: "",
+  });
+
+  return (
+    <div className="p-4">
+      <div className="bg-white rounded-lg shadow-sm">
+        {/* Profile Header */}
+        <div className="p-6 border-b">
+          <div className="flex items-center gap-4 mb-6">
+            <Avatar className="w-16 h-16">
+              <AvatarFallback className="bg-gray-200 text-xl">
+                {user?.firstName?.[0] ||
+                  user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ||
+                  "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-xl font-semibold">
+                {user?.firstName || user?.emailAddresses?.[0]?.emailAddress}
+              </h2>
+              <p className="text-gray-500">
+                {user?.emailAddresses?.[0]?.emailAddress}
+              </p>
+            </div>
           </div>
         </div>
-        <div>
-          <h3 className="font-medium text-gray-900 mb-3">Activity Overview</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="font-semibold">156</p>
-              <p className="text-sm text-gray-500">Total Posts</p>
-            </div>
+
+        {/* Profile Stats */}
+        <div className="grid grid-cols-3 gap-4 p-6 border-b">
+          <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <p className="font-semibold">{userProfile.farmSize || "0"}</p>
+            <p className="text-sm text-gray-500">Farm Size (acres)</p>
+          </div>
+          <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <p className="font-semibold">{userProfile.farmingType || "N/A"}</p>
+            <p className="text-sm text-gray-500">Farming Type</p>
+          </div>
+          <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <p className="font-semibold">
+              {userProfile.mainCrops?.length || 0}
+            </p>
+            <p className="text-sm text-gray-500">Crops</p>
+          </div>
+        </div>
+
+        {/* Profile Form */}
+        <div className="border-b">
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Edit Profile</h3>
+            <ProfileForm
+              initialData={userProfile}
+              onUpdateSuccess={(updatedProfile) =>
+                setUserProfile(updatedProfile)
+              }
+            />
           </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default ProfilePage;
