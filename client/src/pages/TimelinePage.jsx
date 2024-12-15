@@ -51,9 +51,7 @@ const TimelinePage = () => {
     weather: "",
   });
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
-    // Simulated timeline data
     setTimelines([
       {
         id: "1",
@@ -78,7 +76,6 @@ const TimelinePage = () => {
           },
         ],
       },
-      // Add more mock timelines as needed
     ]);
   }, []);
 
@@ -86,12 +83,10 @@ const TimelinePage = () => {
     e.preventDefault();
     setIsCreating(true);
     try {
-      // Add API call here to create timeline
       const newTimelineData = {
         ...newTimeline,
         userId: user.id,
       };
-      // Simulate API call
       setTimelines([
         ...timelines,
         { ...newTimelineData, id: Date.now(), entries: [] },
@@ -111,7 +106,6 @@ const TimelinePage = () => {
 
   const handleAddEntry = async (timelineId) => {
     try {
-      // Add API call here to add entry
       const newEntryData = {
         ...newEntry,
         id: Date.now(),
@@ -151,9 +145,11 @@ const TimelinePage = () => {
               <Plus className="mr-2 h-4 w-4" /> New Timeline
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] bg-white border shadow-lg">
             <DialogHeader>
-              <DialogTitle>Create New Timeline</DialogTitle>
+              <DialogTitle className="text-xl font-semibold">
+                Create New Timeline
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateTimeline} className="space-y-4 mt-4">
               <div className="space-y-2">
@@ -176,10 +172,10 @@ const TimelinePage = () => {
                     setNewTimeline({ ...newTimeline, cropType: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full bg-white">
                     <SelectValue placeholder="Select crop type" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectItem value="wheat">Wheat</SelectItem>
                     <SelectItem value="rice">Rice</SelectItem>
                     <SelectItem value="corn">Corn</SelectItem>
@@ -233,7 +229,7 @@ const TimelinePage = () => {
 
       <div className="space-y-6">
         {timelines.map((timeline) => (
-          <Card key={timeline.id}>
+          <Card key={timeline.id} className="bg-white shadow-sm">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
@@ -247,9 +243,11 @@ const TimelinePage = () => {
                   <DialogTrigger asChild>
                     <Button variant="outline">Add Entry</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="bg-white border shadow-lg">
                     <DialogHeader>
-                      <DialogTitle>Add Timeline Entry</DialogTitle>
+                      <DialogTitle className="text-xl font-semibold">
+                        Add Timeline Entry
+                      </DialogTitle>
                     </DialogHeader>
                     <form className="space-y-4 mt-4">
                       <div className="space-y-2">
@@ -272,10 +270,10 @@ const TimelinePage = () => {
                             setNewEntry({ ...newEntry, activity: value })
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full bg-white">
                             <SelectValue placeholder="Select activity type" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-white">
                             <SelectItem value="soil-preparation">
                               Soil Preparation
                             </SelectItem>
@@ -326,7 +324,7 @@ const TimelinePage = () => {
 
                       <Button
                         type="button"
-                        className="w-full"
+                        className="w-full bg-gray-900 text-white hover:bg-gray-800"
                         onClick={() => handleAddEntry(timeline.id)}
                       >
                         Add Entry
