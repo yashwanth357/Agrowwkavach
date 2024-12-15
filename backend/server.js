@@ -13,6 +13,12 @@ const PORT = process.env.PORT || 5003;
 const UPLOAD_PATH = process.env.FILE_UPLOAD_PATH || "./uploads";
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5000000; // 5MB
 
+// Request Logging Middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 // Basic Middleware
 app.use(express.json());
 app.use(
@@ -57,8 +63,12 @@ const upload = multer({
   },
 });
 
+// Test Route
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Server is working" });
+});
+
 // Profile Routes
-// Get User Profile
 app.get("/api/profile/:clerkId", async (req, res) => {
   try {
     const user = await User.findOne({ clerkId: req.params.clerkId });
@@ -72,7 +82,6 @@ app.get("/api/profile/:clerkId", async (req, res) => {
   }
 });
 
-// Create or Update User Profile
 app.post("/api/profile", async (req, res) => {
   try {
     const { clerkId, email, location, farmSize, mainCrops, farmingType } =
@@ -84,9 +93,7 @@ app.post("/api/profile", async (req, res) => {
 
     const cropsArray = Array.isArray(mainCrops)
       ? mainCrops
-      : typeof mainCrops === "string"
-        ? mainCrops.split(",").map((crop) => crop.trim())
-        : mainCrops || ["None"];
+      : mainCrops?.split(",").map((crop) => crop.trim()) || ["None"];
 
     let user = await User.findOne({ clerkId });
 
@@ -115,12 +122,11 @@ app.post("/api/profile", async (req, res) => {
   }
 });
 
-// Update Profile
 app.put("/api/profile/:clerkId", async (req, res) => {
   try {
     const { location, farmSize, mainCrops, farmingType } = req.body;
-
     const user = await User.findOne({ clerkId: req.params.clerkId });
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -143,7 +149,6 @@ app.put("/api/profile/:clerkId", async (req, res) => {
 });
 
 // Post Routes
-// Create Post
 app.post("/api/posts", upload.single("image"), async (req, res) => {
   try {
     const { content, clerkId } = req.body;
@@ -166,10 +171,16 @@ app.post("/api/posts", upload.single("image"), async (req, res) => {
     });
 
     await post.save();
-    await post.populate({
-      path: "author",
-      select: "email location clerkId",
-    });
+    await post.populate([
+      {
+        path: "author",
+        select: "email location clerkId",
+      },
+      {
+        path: "comments.user",
+        select: "email clerkId",
+      },
+    ]);
 
     res.status(201).json(post);
   } catch (error) {
@@ -178,7 +189,6 @@ app.post("/api/posts", upload.single("image"), async (req, res) => {
   }
 });
 
-// Get Posts
 app.get("/api/posts", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -212,7 +222,6 @@ app.get("/api/posts", async (req, res) => {
   }
 });
 
-// Delete Post
 app.delete("/api/posts/:id", async (req, res) => {
   try {
     const { clerkId } = req.body;
@@ -226,19 +235,20 @@ app.delete("/api/posts/:id", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id).populate(
+      "author",
+      "clerkId",
+    );
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    // Check if the user is the author of the post
-    if (post.author.toString() !== user._id.toString()) {
+    if (post.author.clerkId !== clerkId) {
       return res
         .status(403)
         .json({ error: "Not authorized to delete this post" });
     }
 
-    // Delete the post's image if it exists
     if (post.image) {
       const imagePath = path.join(__dirname, post.image);
       if (fs.existsSync(imagePath)) {
@@ -254,7 +264,6 @@ app.delete("/api/posts/:id", async (req, res) => {
   }
 });
 
-// Like/Unlike Post
 app.post("/api/posts/:id/like", async (req, res) => {
   try {
     const { clerkId } = req.body;
@@ -280,10 +289,16 @@ app.post("/api/posts/:id/like", async (req, res) => {
     }
 
     await post.save();
-    await post.populate({
-      path: "author",
-      select: "email location clerkId",
-    });
+    await post.populate([
+      {
+        path: "author",
+        select: "email location clerkId",
+      },
+      {
+        path: "comments.user",
+        select: "email clerkId",
+      },
+    ]);
 
     res.json(post);
   } catch (error) {
@@ -292,7 +307,6 @@ app.post("/api/posts/:id/like", async (req, res) => {
   }
 });
 
-// Add Comment
 app.post("/api/posts/:id/comment", async (req, res) => {
   try {
     const { clerkId, text } = req.body;
@@ -334,9 +348,13 @@ app.post("/api/posts/:id/comment", async (req, res) => {
   }
 });
 
-// Delete Comment
 app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
   try {
+    console.log("Delete comment request:", {
+      params: req.params,
+      body: req.body,
+    });
+
     const { clerkId } = req.body;
     const { postId, commentId } = req.params;
 
@@ -359,7 +377,6 @@ app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
       return res.status(404).json({ error: "Comment not found" });
     }
 
-    // Check if the user is the author of the comment
     if (comment.user.toString() !== user._id.toString()) {
       return res
         .status(403)
@@ -387,7 +404,6 @@ app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
   }
 });
 
-// Get Single Post
 app.get("/api/posts/:id", async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)

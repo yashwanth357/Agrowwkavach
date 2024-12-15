@@ -1,11 +1,5 @@
 import React, { useState } from "react";
-import {
-  Heart,
-  MessageCircle,
-  Repeat2,
-  MoreVertical,
-  Trash,
-} from "lucide-react";
+import { Heart, MessageCircle, MoreVertical, Trash } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +19,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatDistanceToNow } from "date-fns";
 import ShareMenu from "./ShareMenu";
 import CommentSection from "./CommentSection";
@@ -35,6 +35,7 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
   const [showComments, setShowComments] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState(null);
 
   const isAuthor = post.author?.clerkId === currentUser?.id;
   const isLiked = post.likes?.some((like) => like === currentUser?.id);
@@ -44,8 +45,10 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
   });
 
   const handleLike = async () => {
-    if (isLiking) return;
+    if (isLiking || !currentUser) return;
     setIsLiking(true);
+    setError(null);
+
     try {
       const response = await axios.post(
         `http://localhost:5003/api/posts/${post._id}/like`,
@@ -56,6 +59,7 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
       setPost(response.data);
     } catch (error) {
       console.error("Error liking post:", error);
+      setError(error.response?.data?.error || "Failed to like post");
     } finally {
       setIsLiking(false);
     }
@@ -64,6 +68,8 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
   const handleDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
+    setError(null);
+
     try {
       await axios.delete(`http://localhost:5003/api/posts/${post._id}`, {
         data: { clerkId: currentUser.id },
@@ -73,6 +79,7 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
       }
     } catch (error) {
       console.error("Error deleting post:", error);
+      setError(error.response?.data?.error || "Failed to delete post");
     } finally {
       setIsDeleting(false);
     }
@@ -82,22 +89,15 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
     setPost(updatedPost);
   };
 
-  const handleCommentDeleted = async (commentId) => {
-    try {
-      const response = await axios.delete(
-        `http://localhost:5003/api/posts/${post._id}/comments/${commentId}`,
-        {
-          data: { clerkId: currentUser.id },
-        },
-      );
-      setPost(response.data);
-    } catch (error) {
-      console.error("Error deleting comment:", error);
-    }
+  const handleCommentDeleted = (updatedPost) => {
+    setPost(updatedPost);
   };
 
   return (
     <div className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+      {error && (
+        <div className="px-4 py-2 bg-red-50 text-red-600 text-sm">{error}</div>
+      )}
       <div className="p-4">
         <div className="flex gap-3">
           <Avatar className="w-10 h-10 flex-shrink-0">
@@ -141,16 +141,20 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
                     </DropdownMenuContent>
                   </DropdownMenu>
 
-                  <AlertDialogContent>
+                  <AlertDialogContent className="bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Post</AlertDialogTitle>
-                      <AlertDialogDescription>
+                      <AlertDialogTitle className="text-xl">
+                        Delete Post
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-gray-600">
                         Are you sure you want to delete this post? This action
                         cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel className="bg-transparent border hover:bg-gray-100">
+                        Cancel
+                      </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleDelete}
                         className="bg-red-600 hover:bg-red-700 text-white"
@@ -179,37 +183,49 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
             )}
 
             <div className="flex justify-between items-center mt-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-500 hover:text-blue-600"
-                onClick={() => setShowComments(!showComments)}
-              >
-                <MessageCircle size={18} />
-                <span className="ml-1 text-sm">
-                  {post.comments?.length || 0}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-500 hover:text-green-600"
-              >
-                <Repeat2 size={18} />
-                <span className="ml-1 text-sm">0</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`${
-                  isLiked ? "text-red-600" : "text-gray-500 hover:text-red-600"
-                }`}
-                onClick={handleLike}
-                disabled={isLiking}
-              >
-                <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
-                <span className="ml-1 text-sm">{post.likes?.length || 0}</span>
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-500 hover:text-blue-600"
+                      onClick={() => setShowComments(!showComments)}
+                    >
+                      <MessageCircle size={18} />
+                      <span className="ml-1 text-sm">
+                        {post.comments?.length || 0}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Comments</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`${
+                        isLiked
+                          ? "text-red-600"
+                          : "text-gray-500 hover:text-red-600"
+                      }`}
+                      onClick={handleLike}
+                      disabled={isLiking}
+                    >
+                      <Heart
+                        size={18}
+                        fill={isLiked ? "currentColor" : "none"}
+                      />
+                      <span className="ml-1 text-sm">
+                        {post.likes?.length || 0}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{isLiked ? "Unlike" : "Like"}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <ShareMenu post={post} />
             </div>
           </div>

@@ -32,12 +32,23 @@ const CommentSection = ({
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeDeleteId, setActiveDeleteId] = useState(null);
+
+  // Debug logs
+  console.log("CommentSection Debug:", {
+    currentUserId: currentUser?.id,
+    comments: post.comments,
+    post,
+  });
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
     if (!comment.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
+    setError(null);
+
     try {
       const response = await axios.post(
         `http://localhost:5003/api/posts/${post._id}/comment`,
@@ -53,6 +64,7 @@ const CommentSection = ({
       }
     } catch (error) {
       console.error("Error adding comment:", error);
+      setError(error.response?.data?.error || "Failed to add comment");
     } finally {
       setIsSubmitting(false);
     }
@@ -61,17 +73,37 @@ const CommentSection = ({
   const handleDeleteComment = async (commentId) => {
     if (isDeletingComment) return;
     setIsDeletingComment(true);
+    setError(null);
+    setActiveDeleteId(commentId);
+
     try {
+      const response = await axios.delete(
+        `http://localhost:5003/api/posts/${post._id}/comments/${commentId}`,
+        {
+          data: { clerkId: currentUser.id },
+        },
+      );
+
       if (onCommentDeleted) {
-        await onCommentDeleted(commentId);
+        onCommentDeleted(response.data);
       }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      setError(error.response?.data?.error || "Failed to delete comment");
     } finally {
       setIsDeletingComment(false);
+      setActiveDeleteId(null);
     }
   };
 
   return (
     <div className="px-4 py-3 space-y-4">
+      {error && (
+        <div className="text-red-500 text-sm bg-red-50 p-2 rounded">
+          {error}
+        </div>
+      )}
+
       {/* Comment Input */}
       <form onSubmit={handleSubmitComment} className="space-y-4">
         <div className="flex gap-3">
@@ -108,6 +140,8 @@ const CommentSection = ({
           const isCommentAuthor = comment.user?.clerkId === currentUser?.id;
           const commentUserName =
             comment.user?.email?.split("@")[0] || "Anonymous";
+          const isDeleting =
+            activeDeleteId === comment._id && isDeletingComment;
 
           return (
             <div key={comment._id} className="flex gap-3 group">
@@ -152,22 +186,26 @@ const CommentSection = ({
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        <AlertDialogContent>
+                        <AlertDialogContent className="bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Comment</AlertDialogTitle>
-                            <AlertDialogDescription>
+                            <AlertDialogTitle className="text-xl">
+                              Delete Comment
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-gray-600">
                               Are you sure you want to delete this comment? This
                               action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel className="bg-transparent border hover:bg-gray-100">
+                              Cancel
+                            </AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleDeleteComment(comment._id)}
                               className="bg-red-600 hover:bg-red-700 text-white"
-                              disabled={isDeletingComment}
+                              disabled={isDeleting}
                             >
-                              {isDeletingComment ? "Deleting..." : "Delete"}
+                              {isDeleting ? "Deleting..." : "Delete"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -182,6 +220,12 @@ const CommentSection = ({
             </div>
           );
         })}
+
+        {post.comments?.length === 0 && (
+          <div className="text-center text-gray-500 text-sm py-4">
+            No comments yet. Be the first to comment!
+          </div>
+        )}
       </div>
     </div>
   );
