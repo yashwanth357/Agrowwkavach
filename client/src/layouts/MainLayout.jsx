@@ -6,9 +6,16 @@ import {
   useLocation,
   Navigate,
 } from "react-router-dom";
-import { Home, User, Clock, LogOut, PlusCircle, Menu } from "lucide-react";
+import {
+  Home,
+  User,
+  Clock,
+  MessageSquare,
+  PlusCircle,
+  Menu,
+  LogOut,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   useAuth,
@@ -17,71 +24,97 @@ import {
   SignedOut,
   SignInButton,
   UserButton,
+  useClerk,
 } from "@clerk/clerk-react";
 import axios from "axios";
 import HomePage from "../pages/HomePage";
 import TimelinePage from "../pages/TimelinePage";
 import ProfilePage from "../pages/ProfilePage";
+import ChatPage from "../pages/ChatPage";
 import CreatePostModal from "../components/CreatePostModal";
 
 const ProtectedRoute = ({ children }) => {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+
+  if (!isLoaded) {
+    return null;
+  }
+
   if (!isSignedIn) {
     return <Navigate to="/" replace />;
   }
+
   return children;
 };
 
 const MainLayout = () => {
   const location = useLocation();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const { user } = useUser();
+  const { signOut } = useClerk();
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const syncUserProfile = async () => {
-      if (isSignedIn && user) {
-        try {
-          // First try to get existing profile
-          const response = await axios.get(
-            `http://localhost:5003/api/profile/${user.id}`,
-          );
-          setUserProfile(response.data);
-        } catch (error) {
-          if (error.response?.status === 404) {
-            // If profile doesn't exist, create one
-            try {
-              const createResponse = await axios.post(
-                "http://localhost:5003/api/profile",
-                {
-                  clerkId: user.id,
-                  email: user.primaryEmailAddress?.emailAddress,
-                  location: "Not specified",
-                  farmSize: "0",
-                  mainCrops: ["None"],
-                  farmingType: "conventional",
-                },
-              );
-              setUserProfile(createResponse.data);
-            } catch (createError) {
-              console.error("Error creating profile:", createError);
-              setError("Failed to create user profile");
-            }
-          } else {
-            console.error("Error fetching profile:", error);
-            setError("Failed to load user profile");
+    const fetchUserProfile = async () => {
+      // Only fetch profile if user is signed in
+      if (!isSignedIn || !user) {
+        return;
+      }
+
+      setIsLoadingProfile(true);
+      setError(null);
+
+      try {
+        const response = await axios.get(
+          `http://localhost:5003/api/profile/${user.id}`,
+        );
+        setUserProfile(response.data);
+      } catch (error) {
+        if (error.response?.status === 404) {
+          // If profile doesn't exist, create one
+          try {
+            const createResponse = await axios.post(
+              "http://localhost:5003/api/profile",
+              {
+                clerkId: user.id,
+                email: user.primaryEmailAddress?.emailAddress,
+                location: "Not specified",
+                farmSize: "0",
+                mainCrops: ["None"],
+                farmingType: "conventional",
+              },
+            );
+            setUserProfile(createResponse.data);
+          } catch (createError) {
+            console.error("Error creating profile:", createError);
+            setError("Failed to create user profile");
           }
-        } finally {
-          setIsLoading(false);
+        } else {
+          console.error("Error fetching profile:", error);
+          setError("Failed to load user profile");
         }
+      } finally {
+        setIsLoadingProfile(false);
       }
     };
 
-    syncUserProfile();
+    fetchUserProfile();
   }, [isSignedIn, user]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      // Reset local state
+      setUserProfile(null);
+      setError(null);
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
+  };
 
   const publicSidebarItems = [
     { icon: <Home size={24} />, label: "Home", path: "/" },
@@ -89,6 +122,7 @@ const MainLayout = () => {
 
   const protectedSidebarItems = [
     { icon: <Clock size={24} />, label: "Timeline", path: "/timeline" },
+    { icon: <MessageSquare size={24} />, label: "Chat", path: "/chat" },
     { icon: <User size={24} />, label: "Profile", path: "/profile" },
   ];
 
@@ -98,6 +132,8 @@ const MainLayout = () => {
         return "Home";
       case "/timeline":
         return "Timeline";
+      case "/chat":
+        return "Chat";
       case "/profile":
         return "Profile";
       default:
@@ -112,9 +148,10 @@ const MainLayout = () => {
       <div className="text-xl font-bold px-3 py-2">Agroww Kavach</div>
 
       <nav className="flex-1 mt-6">
-        {publicSidebarItems.map((item, index) => (
+        {/* Public Routes */}
+        {publicSidebarItems.map((item) => (
           <NavLink
-            key={index}
+            key={item.path}
             to={item.path}
             className={({ isActive }) => `
               w-full flex items-center gap-4 mb-2 text-base px-4 py-4 rounded-lg
@@ -136,10 +173,11 @@ const MainLayout = () => {
           </NavLink>
         ))}
 
+        {/* Protected Routes - Only shown when signed in */}
         <SignedIn>
-          {protectedSidebarItems.map((item, index) => (
+          {protectedSidebarItems.map((item) => (
             <NavLink
-              key={`protected-${index}`}
+              key={item.path}
               to={item.path}
               className={({ isActive }) => `
                 w-full flex items-center gap-4 mb-2 text-base px-4 py-4 rounded-lg
@@ -163,6 +201,7 @@ const MainLayout = () => {
         </SignedIn>
       </nav>
 
+      {/* Sidebar Footer */}
       <div className="mt-auto space-y-3">
         <SignedIn>
           <Button
@@ -173,18 +212,28 @@ const MainLayout = () => {
             <PlusCircle className="mr-2" size={20} />
             New Post
           </Button>
-          <div className="flex items-center gap-3 p-4 hover:bg-gray-100 rounded-lg transition-colors">
-            <UserButton afterSignOutUrl="/" />
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 truncate">
-                {user?.primaryEmailAddress?.emailAddress}
-              </p>
-              {userProfile?.location && (
-                <p className="text-sm text-gray-500 truncate">
-                  {userProfile.location}
+          <div className="flex flex-col gap-2 p-4 hover:bg-gray-100 rounded-lg transition-colors">
+            <div className="flex items-center gap-3">
+              <UserButton afterSignOutUrl="/" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 truncate">
+                  {user?.primaryEmailAddress?.emailAddress}
                 </p>
-              )}
+                {userProfile?.location && (
+                  <p className="text-sm text-gray-500 truncate">
+                    {userProfile.location}
+                  </p>
+                )}
+              </div>
             </div>
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
           </div>
         </SignedIn>
         <SignedOut>
@@ -211,6 +260,11 @@ const MainLayout = () => {
       </div>
     </div>
   );
+
+  // Show nothing while Clerk is initializing
+  if (!isLoaded) {
+    return null;
+  }
 
   return (
     <>
@@ -262,41 +316,50 @@ const MainLayout = () => {
                   {getPageTitle(location.pathname)}
                 </h1>
               </div>
-              {error ? (
+
+              {/* Show error states only for authenticated users */}
+              {isSignedIn && error && (
                 <div className="p-4 bg-red-50 text-red-600">{error}</div>
-              ) : isLoading ? (
-                <div className="p-4 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                </div>
-              ) : (
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route
-                    path="/timeline"
-                    element={
-                      <ProtectedRoute>
-                        <TimelinePage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/profile"
-                    element={
-                      <ProtectedRoute>
-                        <ProfilePage
-                          userProfile={userProfile}
-                          setUserProfile={setUserProfile}
-                        />
-                      </ProtectedRoute>
-                    }
-                  />
-                </Routes>
               )}
+
+              {/* Main Routes */}
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route
+                  path="/timeline"
+                  element={
+                    <ProtectedRoute>
+                      <TimelinePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <ChatPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage
+                        userProfile={userProfile}
+                        setUserProfile={setUserProfile}
+                      />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Post Modal - Only rendered when signed in */}
       <SignedIn>
         <CreatePostModal
           isOpen={isPostModalOpen}

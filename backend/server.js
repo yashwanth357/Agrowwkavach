@@ -4,7 +4,7 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const { User, Post } = require("./models");
+const { User, Post, Timeline } = require("./models");
 const OpenAI = require("openai");
 require("dotenv").config();
 
@@ -437,6 +437,290 @@ app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
   } catch (error) {
     console.error("Delete comment error:", error);
     res.status(500).json({ error: "Failed to delete comment" });
+  }
+});
+
+// Timeline Routes
+app.post("/api/timelines", async (req, res) => {
+  try {
+    const {
+      clerkId,
+      title,
+      cropType,
+      startDate,
+      description,
+      totalArea,
+      expectedYield,
+    } = req.body;
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const timeline = new Timeline({
+      user: user._id,
+      title,
+      cropType,
+      startDate,
+      description,
+      totalArea,
+      expectedYield,
+      status: "active",
+    });
+
+    await timeline.save();
+    res.status(201).json(timeline);
+  } catch (error) {
+    console.error("Timeline creation error:", error);
+    res.status(500).json({ error: "Failed to create timeline" });
+  }
+});
+
+app.get("/api/timelines", async (req, res) => {
+  try {
+    const { clerkId, status } = req.query;
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const query = { user: user._id };
+    if (status) {
+      query.status = status;
+    }
+
+    const timelines = await Timeline.find(query)
+      .sort({ startDate: -1 })
+      .populate("user", "email location");
+
+    res.json(timelines);
+  } catch (error) {
+    console.error("Timelines fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch timelines" });
+  }
+});
+
+app.get("/api/timelines/:id", async (req, res) => {
+  try {
+    const timeline = await Timeline.findById(req.params.id).populate(
+      "user",
+      "email location",
+    );
+
+    if (!timeline) {
+      return res.status(404).json({ error: "Timeline not found" });
+    }
+
+    res.json(timeline);
+  } catch (error) {
+    console.error("Timeline fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch timeline" });
+  }
+});
+
+app.put("/api/timelines/:id", async (req, res) => {
+  try {
+    const { clerkId, ...updateData } = req.body;
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const timeline = await Timeline.findOne({
+      _id: req.params.id,
+      user: user._id,
+    });
+
+    if (!timeline) {
+      return res.status(404).json({ error: "Timeline not found" });
+    }
+
+    Object.assign(timeline, updateData);
+    await timeline.save();
+
+    res.json(timeline);
+  } catch (error) {
+    console.error("Timeline update error:", error);
+    res.status(500).json({ error: "Failed to update timeline" });
+  }
+});
+
+app.delete("/api/timelines/:id", async (req, res) => {
+  try {
+    const { clerkId } = req.body;
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const timeline = await Timeline.findOne({
+      _id: req.params.id,
+      user: user._id,
+    });
+
+    if (!timeline) {
+      return res.status(404).json({ error: "Timeline not found" });
+    }
+
+    // Delete all associated images before deleting the timeline
+    timeline.entries.forEach((entry) => {
+      entry.images.forEach((imagePath) => {
+        const fullPath = path.join(__dirname, imagePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    });
+
+    await Timeline.findByIdAndDelete(req.params.id);
+    res.json({ message: "Timeline deleted successfully" });
+  } catch (error) {
+    console.error("Timeline deletion error:", error);
+    res.status(500).json({ error: "Failed to delete timeline" });
+  }
+});
+
+// Timeline Entry Routes
+app.post(
+  "/api/timelines/:timelineId/entries",
+  upload.array("images", 5),
+  async (req, res) => {
+    try {
+      const { clerkId, date, activity, weather, notes, metrics, tags } =
+        req.body;
+
+      const user = await User.findOne({ clerkId });
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const timeline = await Timeline.findOne({
+        _id: req.params.timelineId,
+        user: user._id,
+      });
+
+      if (!timeline) {
+        return res.status(404).json({ error: "Timeline not found" });
+      }
+
+      const images = req.files
+        ? req.files.map((file) => `/uploads/${file.filename}`)
+        : [];
+
+      const entry = {
+        date,
+        activity,
+        weather,
+        notes,
+        images,
+        metrics: metrics ? JSON.parse(metrics) : {},
+        tags: tags ? JSON.parse(tags) : [],
+      };
+
+      timeline.entries.push(entry);
+      await timeline.save();
+
+      res.status(201).json(timeline);
+    } catch (error) {
+      console.error("Timeline entry creation error:", error);
+      res.status(500).json({ error: "Failed to create timeline entry" });
+    }
+  },
+);
+
+app.put(
+  "/api/timelines/:timelineId/entries/:entryId",
+  upload.array("images", 5),
+  async (req, res) => {
+    try {
+      const { clerkId, date, activity, weather, notes, metrics, tags } =
+        req.body;
+
+      const user = await User.findOne({ clerkId });
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const timeline = await Timeline.findOne({
+        _id: req.params.timelineId,
+        user: user._id,
+      });
+
+      if (!timeline) {
+        return res.status(404).json({ error: "Timeline not found" });
+      }
+
+      const entry = timeline.entries.id(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      const newImages = req.files
+        ? req.files.map((file) => `/uploads/${file.filename}`)
+        : [];
+      const updatedImages = [...entry.images, ...newImages];
+
+      Object.assign(entry, {
+        date,
+        activity,
+        weather,
+        notes,
+        images: updatedImages,
+        metrics: metrics ? JSON.parse(metrics) : entry.metrics,
+        tags: tags ? JSON.parse(tags) : entry.tags,
+      });
+
+      await timeline.save();
+      res.json(timeline);
+    } catch (error) {
+      console.error("Timeline entry update error:", error);
+      res.status(500).json({ error: "Failed to update timeline entry" });
+    }
+  },
+);
+
+app.delete("/api/timelines/:timelineId/entries/:entryId", async (req, res) => {
+  try {
+    const { clerkId } = req.body;
+
+    const user = await User.findOne({ clerkId });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const timeline = await Timeline.findOne({
+      _id: req.params.timelineId,
+      user: user._id,
+    });
+
+    if (!timeline) {
+      return res.status(404).json({ error: "Timeline not found" });
+    }
+
+    const entry = timeline.entries.id(req.params.entryId);
+    if (!entry) {
+      return res.status(404).json({ error: "Entry not found" });
+    }
+
+    // Delete associated images
+    entry.images.forEach((imagePath) => {
+      const fullPath = path.join(__dirname, imagePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    });
+
+    timeline.entries.pull(req.params.entryId);
+    await timeline.save();
+
+    res.json(timeline);
+  } catch (error) {
+    console.error("Timeline entry deletion error:", error);
+    res.status(500).json({ error: "Failed to delete timeline entry" });
   }
 });
 

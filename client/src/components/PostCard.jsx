@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Heart, MessageCircle, MoreVertical, Trash } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { SignInButton } from "@clerk/clerk-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,6 +92,69 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
 
   const handleCommentDeleted = (updatedPost) => {
     setPost(updatedPost);
+  };
+
+  const renderLikeButton = () => {
+    if (!currentUser) {
+      return (
+        <SignInButton mode="modal">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 hover:text-red-600"
+          >
+            <Heart size={18} />
+            <span className="ml-1 text-sm">{post.likes?.length || 0}</span>
+          </Button>
+        </SignInButton>
+      );
+    }
+
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`${
+          isLiked ? "text-red-600" : "text-gray-500 hover:text-red-600"
+        }`}
+        onClick={handleLike}
+        disabled={isLiking}
+      >
+        <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
+        <span className="ml-1 text-sm">{post.likes?.length || 0}</span>
+      </Button>
+    );
+  };
+
+  const renderCommentButton = () => {
+    const commentCount = post.comments?.length || 0;
+
+    if (!currentUser) {
+      return (
+        <SignInButton mode="modal">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 hover:text-blue-600"
+          >
+            <MessageCircle size={18} />
+            <span className="ml-1 text-sm">{commentCount}</span>
+          </Button>
+        </SignInButton>
+      );
+    }
+
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-gray-500 hover:text-blue-600"
+        onClick={() => setShowComments(!showComments)}
+      >
+        <MessageCircle size={18} />
+        <span className="ml-1 text-sm">{commentCount}</span>
+      </Button>
+    );
   };
 
   return (
@@ -186,44 +250,22 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-500 hover:text-blue-600"
-                      onClick={() => setShowComments(!showComments)}
-                    >
-                      <MessageCircle size={18} />
-                      <span className="ml-1 text-sm">
-                        {post.comments?.length || 0}
-                      </span>
-                    </Button>
+                    {renderCommentButton()}
                   </TooltipTrigger>
-                  <TooltipContent>Comments</TooltipContent>
+                  <TooltipContent>
+                    {currentUser ? "Comment" : "Sign in to comment"}
+                  </TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`${
-                        isLiked
-                          ? "text-red-600"
-                          : "text-gray-500 hover:text-red-600"
-                      }`}
-                      onClick={handleLike}
-                      disabled={isLiking}
-                    >
-                      <Heart
-                        size={18}
-                        fill={isLiked ? "currentColor" : "none"}
-                      />
-                      <span className="ml-1 text-sm">
-                        {post.likes?.length || 0}
-                      </span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{isLiked ? "Unlike" : "Like"}</TooltipContent>
+                  <TooltipTrigger asChild>{renderLikeButton()}</TooltipTrigger>
+                  <TooltipContent>
+                    {currentUser
+                      ? isLiked
+                        ? "Unlike"
+                        : "Like"
+                      : "Sign in to like"}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <ShareMenu post={post} />
@@ -232,7 +274,7 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
         </div>
       </div>
 
-      {showComments && (
+      {showComments && currentUser && (
         <div className="border-t border-gray-100">
           <CommentSection
             post={post}

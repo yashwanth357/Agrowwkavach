@@ -16,19 +16,45 @@ const ProfilePage = () => {
   });
   const [userPosts, setUserPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch user profile
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user?.id) return;
+
+      setIsLoadingProfile(true);
+      try {
+        const response = await axios.get(
+          `http://localhost:5003/api/profile/${user.id}`,
+        );
+        setUserProfile(response.data);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        setError("Failed to load profile data");
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user?.id]);
 
   // Fetch user's posts
   useEffect(() => {
     const fetchUserPosts = async () => {
+      if (!user?.id) return;
+
+      setIsLoading(true);
       try {
-        if (user?.id) {
-          const response = await axios.get(
-            `http://localhost:5003/api/posts?userId=${user.id}`,
-          );
-          setUserPosts(response.data.posts);
-        }
+        const response = await axios.get(
+          `http://localhost:5003/api/posts?userId=${user.id}`,
+        );
+        setUserPosts(response.data.posts);
       } catch (error) {
         console.error("Error fetching user posts:", error);
+        setError("Failed to load posts");
       } finally {
         setIsLoading(false);
       }
@@ -36,6 +62,10 @@ const ProfilePage = () => {
 
     fetchUserPosts();
   }, [user?.id]);
+
+  const handleUpdateProfile = (updatedProfile) => {
+    setUserProfile(updatedProfile);
+  };
 
   return (
     <div className="p-4">
@@ -61,24 +91,38 @@ const ProfilePage = () => {
           </div>
 
           {/* Profile Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="font-semibold">{userProfile.farmSize || "0"}</p>
-              <p className="text-sm text-gray-500">Farm Size (acres)</p>
+          {isLoadingProfile ? (
+            <div className="grid grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="text-center p-4 bg-gray-50 rounded-lg animate-pulse"
+                >
+                  <div className="h-6 bg-gray-200 rounded w-16 mx-auto mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-24 mx-auto"></div>
+                </div>
+              ))}
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="font-semibold">
-                {userProfile.farmingType || "N/A"}
-              </p>
-              <p className="text-sm text-gray-500">Farming Type</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="font-semibold">{userProfile.farmSize || "0"}</p>
+                <p className="text-sm text-gray-500">Farm Size (acres)</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="font-semibold">
+                  {userProfile.farmingType || "N/A"}
+                </p>
+                <p className="text-sm text-gray-500">Farming Type</p>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="font-semibold">
+                  {userProfile.mainCrops?.length || 0}
+                </p>
+                <p className="text-sm text-gray-500">Crops</p>
+              </div>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="font-semibold">
-                {userProfile.mainCrops?.length || 0}
-              </p>
-              <p className="text-sm text-gray-500">Crops</p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Custom Tab Navigation */}
@@ -139,9 +183,7 @@ const ProfilePage = () => {
               <h3 className="text-lg font-semibold mb-4">Edit Profile</h3>
               <ProfileForm
                 initialData={userProfile}
-                onUpdateSuccess={(updatedProfile) =>
-                  setUserProfile(updatedProfile)
-                }
+                onUpdateSuccess={handleUpdateProfile}
               />
             </div>
           )}
