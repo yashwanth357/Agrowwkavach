@@ -37,6 +37,7 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
   const [isLiking, setIsLiking] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState(null);
+  const [imageError, setImageError] = useState(false);
 
   const isAuthor = post.author?.clerkId === currentUser?.id;
   const isLiked = post.likes?.some((like) => like === currentUser?.id);
@@ -92,6 +93,10 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
 
   const handleCommentDeleted = (updatedPost) => {
     setPost(updatedPost);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
   };
 
   const renderLikeButton = () => {
@@ -236,12 +241,14 @@ const PostCard = ({ post: initialPost, currentUser, onPostDeleted }) => {
               {post.content}
             </p>
 
-            {post.image && (
+            {post.image && !imageError && (
               <div className="mt-3 rounded-lg overflow-hidden">
                 <img
-                  src={`http://localhost:5003${post.image}`}
+                  src={post.image}
                   alt="Post attachment"
                   className="max-h-[300px] w-full object-cover"
+                  onError={handleImageError}
+                  loading="lazy"
                 />
               </div>
             )}

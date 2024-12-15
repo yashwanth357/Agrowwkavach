@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Image as ImageIcon } from "lucide-react";
+import { X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,54 +19,104 @@ const CreatePostModal = ({ isOpen, onClose }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const validateImage = (file) => {
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!validTypes.includes(file.type)) {
+      return {
+        isValid: false,
+        error: "Please select a valid image file (JPEG, PNG, or GIF)",
+      };
+    }
+
+    if (file.size > maxSize) {
+      return {
+        isValid: false,
+        error: "Image size should be less than 5MB",
+      };
+    }
+
+    return {
+      isValid: true,
+      error: null,
+    };
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5000000) {
-        // 5MB limit
-        setError("Image size should be less than 5MB");
+      const validation = validateImage(file);
+
+      if (!validation.isValid) {
+        setError(validation.error);
         return;
       }
+
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
+      setError(null);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!content.trim() && !selectedImage) {
+      setError("Please add some content or an image");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
+    setUploadProgress(0);
 
     try {
       const formData = new FormData();
-      formData.append("content", content);
+      formData.append("content", content.trim());
       formData.append("clerkId", user.id);
       if (selectedImage) {
         formData.append("image", selectedImage);
       }
 
-      await axios.post("http://localhost:5003/api/posts", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
+      const response = await axios.post(
+        "http://localhost:5003/api/posts",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total,
+            );
+            setUploadProgress(progress);
+          },
         },
-      });
+      );
 
       // Reset form
       setContent("");
       setSelectedImage(null);
       setImagePreview(null);
+      setUploadProgress(0);
       onClose();
 
-      // Optional: Refresh the posts feed
+      // Refresh the posts feed
       window.location.reload();
     } catch (error) {
       console.error("Error creating post:", error);
-      setError(error.response?.data?.error || "Failed to create post");
+      setError(
+        error.response?.data?.error ||
+          error.response?.data?.details ||
+          "Failed to create post",
+      );
+      setUploadProgress(0);
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +125,7 @@ const CreatePostModal = ({ isOpen, onClose }) => {
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    setError(null);
   };
 
   return (
@@ -125,6 +176,15 @@ const CreatePostModal = ({ isOpen, onClose }) => {
             </div>
           )}
 
+          {uploadProgress > 0 && uploadProgress < 100 && (
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                className="bg-gray-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          )}
+
           <div className="flex justify-between items-center pt-4 border-t mt-4">
             <div className="flex items-center">
               <label
@@ -136,7 +196,7 @@ const CreatePostModal = ({ isOpen, onClose }) => {
               <input
                 id="image-upload"
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/gif"
                 onChange={handleImageChange}
                 className="hidden"
               />
@@ -156,7 +216,14 @@ const CreatePostModal = ({ isOpen, onClose }) => {
                 className="bg-gray-900 text-white hover:bg-gray-800"
                 disabled={(!content.trim() && !selectedImage) || isLoading}
               >
-                {isLoading ? "Posting..." : "Post"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Posting...
+                  </>
+                ) : (
+                  "Post"
+                )}
               </Button>
             </div>
           </div>

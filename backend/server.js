@@ -1,18 +1,15 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
 const { User, Post, Timeline } = require("./models");
 const OpenAI = require("openai");
+const { upload, deleteFile, getFileKeyFromUrl } = require("./config/spaces");
 require("dotenv").config();
 
 // Server Configuration
 const app = express();
 const PORT = process.env.PORT || 5003;
-const UPLOAD_PATH = process.env.FILE_UPLOAD_PATH || "./uploads";
-const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5000000; // 5MB
 
 // OpenAI Configuration
 const openai = new OpenAI({
@@ -35,7 +32,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
-app.use("/uploads", express.static(UPLOAD_PATH));
 
 // MongoDB Connection
 mongoose
@@ -45,29 +41,6 @@ mongoose
   })
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
-
-// File Upload Configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_PATH),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: MAX_FILE_SIZE },
-  fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png|gif/;
-    const extname = filetypes.test(
-      path.extname(file.originalname).toLowerCase(),
-    );
-    const mimetype = filetypes.test(file.mimetype);
-    if (mimetype && extname) return cb(null, true);
-    cb(new Error("Error: Images Only!"));
-  },
-});
 
 // Chat Endpoint
 app.post("/api/chat", async (req, res) => {
@@ -200,7 +173,7 @@ app.post("/api/posts", upload.single("image"), async (req, res) => {
     const post = new Post({
       author: user._id,
       content,
-      image: req.file ? `/uploads/${req.file.filename}` : null,
+      image: req.file ? req.file.location : null,
     });
 
     await post.save();
@@ -375,9 +348,9 @@ app.delete("/api/posts/:id", async (req, res) => {
     }
 
     if (post.image) {
-      const imagePath = path.join(__dirname, post.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      const fileKey = getFileKeyFromUrl(post.image);
+      if (fileKey) {
+        await deleteFile(fileKey);
       }
     }
 
@@ -566,15 +539,15 @@ app.delete("/api/timelines/:id", async (req, res) => {
       return res.status(404).json({ error: "Timeline not found" });
     }
 
-    // Delete all associated images before deleting the timeline
-    timeline.entries.forEach((entry) => {
-      entry.images.forEach((imagePath) => {
-        const fullPath = path.join(__dirname, imagePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
+    // Delete all associated images
+    for (const entry of timeline.entries) {
+      for (const imageUrl of entry.images) {
+        const fileKey = getFileKeyFromUrl(imageUrl);
+        if (fileKey) {
+          await deleteFile(fileKey);
         }
-      });
-    });
+      }
+    }
 
     await Timeline.findByIdAndDelete(req.params.id);
     res.json({ message: "Timeline deleted successfully" });
@@ -607,9 +580,7 @@ app.post(
         return res.status(404).json({ error: "Timeline not found" });
       }
 
-      const images = req.files
-        ? req.files.map((file) => `/uploads/${file.filename}`)
-        : [];
+      const images = req.files ? req.files.map((file) => file.location) : [];
 
       const entry = {
         date,
@@ -659,9 +630,7 @@ app.put(
         return res.status(404).json({ error: "Entry not found" });
       }
 
-      const newImages = req.files
-        ? req.files.map((file) => `/uploads/${file.filename}`)
-        : [];
+      const newImages = req.files ? req.files.map((file) => file.location) : [];
       const updatedImages = [...entry.images, ...newImages];
 
       Object.assign(entry, {
@@ -706,13 +675,13 @@ app.delete("/api/timelines/:timelineId/entries/:entryId", async (req, res) => {
       return res.status(404).json({ error: "Entry not found" });
     }
 
-    // Delete associated images
-    entry.images.forEach((imagePath) => {
-      const fullPath = path.join(__dirname, imagePath);
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
+    // Delete associated images from Spaces
+    for (const imageUrl of entry.images) {
+      const fileKey = getFileKeyFromUrl(imageUrl);
+      if (fileKey) {
+        await deleteFile(fileKey);
       }
-    });
+    }
 
     timeline.entries.pull(req.params.entryId);
     await timeline.save();
@@ -731,7 +700,7 @@ app.use((err, req, res, next) => {
     if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         error: "File is too large",
-        details: `Maximum file size is ${MAX_FILE_SIZE / 1000000}MB`,
+        details: `Maximum file size is ${process.env.MAX_FILE_SIZE / 1000000}MB`,
       });
     }
   }
@@ -745,10 +714,4 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log("Environment:", process.env.NODE_ENV || "development");
-
-  // Create uploads directory if it doesn't exist
-  if (!fs.existsSync(UPLOAD_PATH)) {
-    fs.mkdirSync(UPLOAD_PATH, { recursive: true });
-    console.log("Created uploads directory");
-  }
 });
