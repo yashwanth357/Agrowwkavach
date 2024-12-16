@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import ProfileForm from "../components/ProfileForm";
-import { useUser } from "@clerk/clerk-react";
+import { useUser  } from "@clerk/clerk-react";
 import PostCard from "../components/PostCard";
 import axios from "axios";
 
 const ProfilePage = () => {
-  const { user } = useUser();
+  const { user } = useUser ();
   const [activeTab, setActiveTab] = useState("posts");
   const [userProfile, setUserProfile] = useState({
     location: "",
@@ -27,7 +27,7 @@ const ProfilePage = () => {
       setIsLoadingProfile(true);
       try {
         const response = await axios.get(
-          `http://localhost:5003/api/profile/${user.id}`,
+          `http://localhost:5003/api/profile/${user.id}`
         );
         setUserProfile(response.data);
       } catch (error) {
@@ -49,7 +49,7 @@ const ProfilePage = () => {
       setIsLoading(true);
       try {
         const response = await axios.get(
-          `http://localhost:5003/api/posts?userId=${user.id}`,
+          `http://localhost:5003/api/posts?userId=${user.id}`
         );
         setUserPosts(response.data.posts);
       } catch (error) {
@@ -67,14 +67,73 @@ const ProfilePage = () => {
     setUserProfile(updatedProfile);
   };
 
+  // Inline styles for farming theme
+  const styles = {
+    container: {
+      padding: "1rem",
+      backgroundColor: "#e6f7e6", // Light green background
+      fontFamily: "'Arial', sans-serif", // Simple, readable font
+    },
+    profileCard: {
+      backgroundColor: "white",
+      borderRadius: "8px",
+      border: "1px solid #d1d5db",
+    },
+    header: {
+      padding: "1.5rem",
+      borderBottom: "1px solid #d1d5db",
+    },
+    avatar: {
+      width: "4rem",
+      height: "4rem",
+    },
+    statsContainer: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: "1rem",
+      padding: "1rem",
+    },
+    statCard: {
+      textAlign: "center",
+      padding: "1rem",
+      backgroundColor: "#f9fafb", // Light gray background
+      borderRadius: "8px",
+    },
+    tabButton: {
+      flex: 1,
+      padding: "1rem",
+      fontSize: "1rem",
+      fontWeight: "500",
+      borderBottom: "2px solid transparent",
+      cursor: "pointer",
+    },
+    activeTab: {
+      borderBottom: "2px solid #4a7c2a", // Dark green for active tab
+      color: "#4a7c2a",
+    },
+    inactiveTab: {
+      color: "#6b7280", // Gray for inactive tab
+    },
+    loadingSpinner: {
+      display: "flex",
+      justifyContent: "center",
+      padding: "2rem",
+    },
+    errorMessage: {
+      color: "#e53e3e", // Red color for error messages
+      textAlign: "center",
+      padding: "1rem",
+    },
+  };
+
   return (
-    <div className="p-4">
-      <div className="bg-white rounded-lg border border-gray-200">
+    <div style={styles.container}>
+      <div style={styles.profileCard}>
         {/* Profile Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div style={styles.header}>
           <div className="flex items-center gap-4 mb-6">
-            <Avatar className="w-16 h-16">
-              <AvatarFallback className="bg-gray-200 text-xl">
+            <Avatar style={styles.avatar}>
+              <AvatarFallback className=" bg-gray-200 text-xl">
                 {user?.firstName?.[0] ||
                   user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ||
                   "U"}
@@ -92,7 +151,7 @@ const ProfilePage = () => {
 
           {/* Profile Stats */}
           {isLoadingProfile ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div style={styles.statsContainer}>
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
@@ -104,18 +163,18 @@ const ProfilePage = () => {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div style={styles.statsContainer}>
+              <div style={styles.statCard}>
                 <p className="font-semibold">{userProfile.farmSize || "0"}</p>
                 <p className="text-sm text-gray-500">Farm Size (acres)</p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div style={styles.statCard}>
                 <p className="font-semibold">
                   {userProfile.farmingType || "N/A"}
                 </p>
                 <p className="text-sm text-gray-500">Farming Type</p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div style={styles.statCard}>
                 <p className="font-semibold">
                   {userProfile.mainCrops?.length || 0}
                 </p>
@@ -129,21 +188,19 @@ const ProfilePage = () => {
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab("posts")}
-            className={`flex-1 px-6 py-3 text-sm font-medium border-b-2 ${
-              activeTab === "posts"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            style={{
+              ...styles.tabButton,
+              ...(activeTab === "posts" ? styles.activeTab : styles.inactiveTab),
+            }}
           >
             My Posts
           </button>
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex-1 px-6 py-3 text-sm font-medium border-b-2 ${
-              activeTab === "profile"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            style={{
+              ...styles.tabButton,
+              ...(activeTab === "profile" ? styles.activeTab : styles.inactiveTab),
+            }}
           >
             Edit Profile
           </button>
@@ -154,7 +211,7 @@ const ProfilePage = () => {
           {activeTab === "posts" && (
             <div className="divide-y divide-gray-200">
               {isLoading ? (
-                <div className="flex justify-center py-8">
+                <div style={styles.loadingSpinner}>
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
                 </div>
               ) : userPosts.length > 0 ? (
@@ -162,7 +219,7 @@ const ProfilePage = () => {
                   <PostCard
                     key={post._id}
                     post={post}
-                    currentUser={user}
+                    currentUser ={user}
                     onPostDeleted={(deletedPostId) => {
                       setUserPosts(
                         userPosts.filter((p) => p._id !== deletedPostId),
@@ -194,3 +251,14 @@ const ProfilePage = () => {
 };
 
 export default ProfilePage;
+
+
+
+
+
+//...
+
+
+
+
+

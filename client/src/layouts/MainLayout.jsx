@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   useAuth,
-  useUser,
+  useUser ,
   SignedIn,
   SignedOut,
   SignInButton,
@@ -50,7 +50,7 @@ const ProtectedRoute = ({ children }) => {
 const MainLayout = () => {
   const location = useLocation();
   const { isSignedIn, isLoaded } = useAuth();
-  const { user } = useUser();
+  const { user } = useUser ();
   const { signOut } = useClerk();
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
@@ -59,7 +59,6 @@ const MainLayout = () => {
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      // Only fetch profile if user is signed in
       if (!isSignedIn || !user) {
         return;
       }
@@ -69,12 +68,11 @@ const MainLayout = () => {
 
       try {
         const response = await axios.get(
-          `http://localhost:5003/api/profile/${user.id}`,
+          `http://localhost:5003/api/profile/${user.id}`
         );
         setUserProfile(response.data);
       } catch (error) {
         if (error.response?.status === 404) {
-          // If profile doesn't exist, create one
           try {
             const createResponse = await axios.post(
               "http://localhost:5003/api/profile",
@@ -85,7 +83,7 @@ const MainLayout = () => {
                 farmSize: "0",
                 mainCrops: ["None"],
                 farmingType: "conventional",
-              },
+              }
             );
             setUserProfile(createResponse.data);
           } catch (createError) {
@@ -107,7 +105,6 @@ const MainLayout = () => {
   const handleLogout = async () => {
     try {
       await signOut();
-      // Reset local state
       setUserProfile(null);
       setError(null);
       window.location.href = "/";
@@ -123,7 +120,7 @@ const MainLayout = () => {
   const protectedSidebarItems = [
     { icon: <Clock size={24} />, label: "Timeline", path: "/timeline" },
     { icon: <MessageSquare size={24} />, label: "Chat", path: "/chat" },
-    { icon: <User size={24} />, label: "Profile", path: "/profile" },
+    { icon: <User  size={24} />, label: "Profile", path: "/profile" },
   ];
 
   const getPageTitle = (pathname) => {
@@ -148,7 +145,6 @@ const MainLayout = () => {
       <div className="text-xl font-bold px-3 py-2">Agroww Kavach</div>
 
       <nav className="flex-1 mt-6">
-        {/* Public Routes */}
         {publicSidebarItems.map((item) => (
           <NavLink
             key={item.path}
@@ -173,7 +169,6 @@ const MainLayout = () => {
           </NavLink>
         ))}
 
-        {/* Protected Routes - Only shown when signed in */}
         <SignedIn>
           {protectedSidebarItems.map((item) => (
             <NavLink
@@ -201,7 +196,6 @@ const MainLayout = () => {
         </SignedIn>
       </nav>
 
-      {/* Sidebar Footer */}
       <div className="mt-auto space-y-3">
         <SignedIn>
           <Button
@@ -214,7 +208,7 @@ const MainLayout = () => {
           </Button>
           <div className="flex flex-col gap-2 p-4 hover:bg-gray-100 rounded-lg transition-colors">
             <div className="flex items-center gap-3">
-              <UserButton afterSignOutUrl="/" />
+              <User Button afterSignOutUrl="/" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 truncate">
                   {user?.primaryEmailAddress?.emailAddress}
@@ -261,7 +255,6 @@ const MainLayout = () => {
     </div>
   );
 
-  // Show nothing while Clerk is initializing
   if (!isLoaded) {
     return null;
   }
@@ -269,12 +262,10 @@ const MainLayout = () => {
   return (
     <>
       <div className="flex min-h-screen bg-white">
-        {/* Desktop Sidebar */}
         <div className="hidden md:block fixed w-[240px] h-screen border-r border-gray-200 bg-white">
           <SidebarContent />
         </div>
 
-        {/* Mobile Header */}
         <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-20 px-4 py-2">
           <div className="flex items-center justify-between">
             <Sheet>
@@ -292,10 +283,10 @@ const MainLayout = () => {
             </Sheet>
             <span className="text-xl font-bold">Agroww Kavach</span>
             <SignedIn>
-              <UserButton afterSignOutUrl="/" />
+              <User Button afterSignOutUrl="/" />
             </SignedIn>
             <SignedOut>
-              <SignInButton mode="modal">
+ <SignInButton mode="modal">
                 <Button
                   size="sm"
                   className="bg-gray-900 hover:bg-gray-800 text-white"
@@ -307,7 +298,6 @@ const MainLayout = () => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="flex-1 flex justify-center">
           <div className="w-full md:ml-[240px] lg:ml-[240px] max-w-[600px] xl:max-w-[600px]">
             <div className="mt-14 md:mt-0">
@@ -317,12 +307,10 @@ const MainLayout = () => {
                 </h1>
               </div>
 
-              {/* Show error states only for authenticated users */}
               {isSignedIn && error && (
                 <div className="p-4 bg-red-50 text-red-600">{error}</div>
               )}
 
-              {/* Main Routes */}
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route
@@ -347,7 +335,7 @@ const MainLayout = () => {
                     <ProtectedRoute>
                       <ProfilePage
                         userProfile={userProfile}
-                        setUserProfile={setUserProfile}
+                        setUser Profile={setUserProfile}
                       />
                     </ProtectedRoute>
                   }
@@ -359,7 +347,6 @@ const MainLayout = () => {
         </div>
       </div>
 
-      {/* Post Modal - Only rendered when signed in */}
       <SignedIn>
         <CreatePostModal
           isOpen={isPostModalOpen}
@@ -371,3 +358,14 @@ const MainLayout = () => {
 };
 
 export default MainLayout;
+
+
+
+
+
+
+
+
+//.....
+
+

@@ -1,12 +1,15 @@
 import { Routes as RouterRoutes, Route, Navigate } from "react-router-dom";
-import { useUser, useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/clerk-react";
+// import { useUser } from "@clerk/clerk-react";
+
 import HomePage from "./pages/HomePage";
 import TimelinePage from "./pages/TimelinePage";
 import ProfilePage from "./pages/ProfilePage";
 import ChatPage from "./pages/ChatPage";
 
 // Remove LoadingScreen since we want to minimize loading states
-const PrivateRoute = ({ children }) => {
+// const PrivateRoute = ({ children }) => {
+  const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSignedIn, isLoaded } = useAuth();
 
   // Return null instead of loading screen
@@ -22,7 +25,8 @@ const PrivateRoute = ({ children }) => {
 };
 
 // Modified to minimize unnecessary API calls
-const PublicOnlyRoute = ({ children }) => {
+// const PublicOnlyRoute = ({ children }) => {
+  const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSignedIn, isLoaded } = useAuth();
 
   if (!isLoaded) {
